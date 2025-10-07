@@ -84,27 +84,17 @@
     }
 
     #proxy-frame {
+      width: 0;
+      height: 0;
+      border: none;
       position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
     }
 
-    .status-message {
-      text-align: center;
+    .status {
       padding: 10px;
-      margin: 10px 0;
       border-radius: 5px;
-    }
-
-    .status-loading {
-      background: #eff6ff;
-      color: #1e40af;
+      margin: 10px 0;
+      text-align: center;
     }
 
     .status-ready {
@@ -112,25 +102,24 @@
       color: #166534;
     }
 
+    .status-loading {
+      background: #eff6ff;
+      color: #1e40af;
+    }
+
     .status-error {
       background: #fef2f2;
       color: #dc2626;
-    }
-
-    @media (max-width: 600px) {
-      .button-group {
-        flex-direction: column;
-      }
     }
   </style>
 
   <h2>🎯 Answer To Your Ask Questions</h2>
   <input id="question-input" placeholder="Enter your question..." />
   
-  <div id="status-container"></div>
+  <div id="status" class="status status-loading">🔄 Connecting to AI service...</div>
 
   <div class="button-group">
-    <button id="generate-btn">Get The Answer</button>
+    <button id="generate-btn" disabled>Get The Answer</button>
     <button class="platform-btn" onclick="formatResult('facebook')">Facebook</button>
     <button class="platform-btn" onclick="formatResult('instagram')">Instagram</button>
     <button class="platform-btn" onclick="formatResult('tiktok')">TikTok</button>
@@ -140,191 +129,131 @@
 
   <div id="result-container"></div>
 
-  <!-- Hidden iframe that loads the GAS proxy -->
-  <iframe 
-    id="proxy-frame" 
-    src="https://script.google.com/macros/s/AKfycbwLxQ_yJxWuDmrTEIrbhCoZCppqHTQSiGRhzL6EEa8jkHwhqmRJjm2AHVODrmuYp52Wfw/exec"
-    onload="onProxyFrameLoad()">
-  </iframe>
+  <!-- Hidden iframe -->
+  <iframe id="proxy-frame"></iframe>
 
   <script>
-    // ===== CONFIGURATION =====
-    // REPLACE THIS WITH YOUR ACTUAL PROXY URL FROM STEP 2
-    const PROXY_URL = "https://script.google.com/macros/s/YOUR_ACTUAL_PROXY_URL/exec";
+    // ⚙️ CONFIG - REPLACE THIS WITH YOUR ACTUAL GAS URL
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxs-NEWWd9YJfplJQQL8RMY7IF9h6ljzYFCR0mIx_1l9cJqJRJJrgasn1I7_VtPMgec7Q/exec";
     
-    let baseContent = "";
-    let isProxyReady = false;
+    let currentContent = "";
+    let isReady = false;
 
-    // ===== ELEMENTS =====
+    // 📦 Initialize
     const proxyFrame = document.getElementById('proxy-frame');
-    const statusContainer = document.getElementById('status-container');
-    const resultContainer = document.getElementById('result-container');
+    const statusDiv = document.getElementById('status');
+    const resultDiv = document.getElementById('result-container');
     const generateBtn = document.getElementById('generate-btn');
-    const questionInput = document.getElementById('question-input');
-
-    // ===== PROXY COMMUNICATION =====
     
-    /**
-     * Update status message
-     */
-    function updateStatus(message, type = 'info') {
-      statusContainer.innerHTML = `<div class="status-message status-${type}">${message}</div>`;
-    }
+    // Load the proxy iframe
+    proxyFrame.src = GAS_URL;
 
-    /**
-     * When proxy iframe loads
-     */
-    function onProxyFrameLoad() {
-      updateStatus('🔌 Connecting to AI service...', 'loading');
-    }
-
-    /**
-     * Listen for messages from the proxy iframe
-     */
+    // 📡 Communication with proxy
     window.addEventListener('message', function(event) {
-      console.log('Received message from proxy:', event.data);
+      console.log('Message received:', event.data);
       
-      switch (event.data.type) {
-        case 'proxyReady':
-          isProxyReady = true;
-          updateStatus('✅ AI service connected and ready!', 'ready');
+      switch (event.data.action) {
+        case 'ready':
+          isReady = true;
           generateBtn.disabled = false;
+          statusDiv.textContent = '✅ AI service ready!';
+          statusDiv.className = 'status status-ready';
           break;
           
-        case 'proxyStatus':
-          updateStatus(event.data.message, 'loading');
-          break;
-          
-        case 'answerResult':
+        case 'result':
           if (event.data.data.success) {
-            baseContent = event.data.data.content;
-            resultContainer.textContent = baseContent;
-            resultContainer.className = "success";
-            resultContainer.style.display = "block";
-            updateStatus('✅ Answer generated successfully!', 'ready');
+            currentContent = event.data.data.content;
+            resultDiv.textContent = currentContent;
+            resultDiv.className = 'success';
+            resultDiv.style.display = 'block';
+            statusDiv.textContent = '✅ Answer generated!';
+            statusDiv.className = 'status status-ready';
           } else {
-            resultContainer.textContent = "❌ Error: " + event.data.data.error;
-            resultContainer.className = "error";
-            resultContainer.style.display = "block";
-            updateStatus('❌ Failed to generate answer', 'error');
+            resultDiv.textContent = '❌ Error: ' + event.data.data.error;
+            resultDiv.className = 'error';
+            resultDiv.style.display = 'block';
+            statusDiv.textContent = '❌ ' + event.data.data.error;
+            statusDiv.className = 'status status-error';
           }
           break;
           
-        case 'answerError':
-          resultContainer.textContent = "❌ Error: " + event.data.data;
-          resultContainer.className = "error";
-          resultContainer.style.display = "block";
-          updateStatus('❌ Connection error', 'error');
+        case 'error':
+          resultDiv.textContent = '❌ Error: ' + event.data.data;
+          resultDiv.className = 'error';
+          resultDiv.style.display = 'block';
+          statusDiv.textContent = '❌ ' + event.data.data;
+          statusDiv.className = 'status status-error';
           break;
       }
     });
 
-    // ===== MAIN FUNCTION =====
-    
+    // 🎯 Generate answer
     generateBtn.onclick = function() {
-      const question = questionInput.value.trim();
+      const question = document.getElementById('question-input').value.trim();
+      
       if (!question) {
-        alert("Please enter a question.");
-        return;
-      }
-
-      if (!isProxyReady) {
-        alert("AI service is not ready yet. Please wait...");
-        return;
-      }
-
-      // Show loading state
-      resultContainer.textContent = "⏳ Generating answer...";
-      resultContainer.className = "loading";
-      resultContainer.style.display = "block";
-      updateStatus('🔄 Generating your answer...', 'loading');
-
-      // Send question to proxy iframe
-      try {
-        proxyFrame.contentWindow.postMessage({
-          type: 'generateAnswer',
-          question: question
-        }, PROXY_URL);
-      } catch (error) {
-        resultContainer.textContent = "❌ Error communicating with AI service";
-        resultContainer.className = "error";
-        updateStatus('❌ Communication error', 'error');
-      }
-    };
-
-    // ===== PLATFORM FORMATTING =====
-    
-    function formatResult(platform) {
-      if (!baseContent) {
-        alert("Please generate an answer first.");
+        alert('Please enter a question');
         return;
       }
       
-      let prefix = "";
-      switch (platform) {
-        case "facebook": 
-          prefix = "📘 Facebook Post:\n";
-          break;
-        case "instagram": 
-          prefix = "📸 Instagram Caption:\n";
-          break;
-        case "tiktok": 
-          prefix = "🎵 TikTok Hook:\n";
-          break;
-        case "youtube": 
-          prefix = "🎬 YouTube Video Script:\nIntro:\n";
-          break;
+      if (!isReady) {
+        alert('AI service not ready yet');
+        return;
       }
+      
+      // Show loading
+      resultDiv.textContent = '⏳ Generating your answer...';
+      resultDiv.className = 'loading';
+      resultDiv.style.display = 'block';
+      statusDiv.textContent = '🔄 Generating answer...';
+      statusDiv.className = 'status status-loading';
+      
+      // Send to proxy
+      proxyFrame.contentWindow.postMessage({
+        action: 'generate',
+        question: question
+      }, GAS_URL);
+    };
 
-      const hashtags = "\n\n#Marketing #SocialMedia #Tips #GrowthHacks";
-      const cta = "\n\n👉 Like ❤️ | Comment 💬 | Share 🔁 | Follow 🔔";
-
-      const formatted = `${prefix}${baseContent}${cta}${hashtags}`;
-      resultContainer.textContent = formatted;
-      resultContainer.className = "success";
-      updateStatus(`✅ Formatted for ${platform}`, 'ready');
+    // 🎨 Format for platforms
+    function formatResult(platform) {
+      if (!currentContent) {
+        alert('Generate an answer first');
+        return;
+      }
+      
+      let prefix = '';
+      switch (platform) {
+        case 'facebook': prefix = '📘 Facebook Post:\n\n'; break;
+        case 'instagram': prefix = '📸 Instagram:\n\n'; break;
+        case 'tiktok': prefix = '🎵 TikTok:\n\n'; break;
+        case 'youtube': prefix = '🎬 YouTube:\n\n'; break;
+      }
+      
+      resultDiv.textContent = prefix + currentContent;
     }
 
-    // ===== COPY FUNCTION =====
-    
-    document.getElementById("copy-btn").onclick = function() {
-      const text = resultContainer.textContent;
-      if (!text || text === "⏳ Generating answer...") {
-        alert("Nothing to copy.");
+    // 📋 Copy function
+    document.getElementById('copy-btn').onclick = function() {
+      const text = resultDiv.textContent;
+      if (!text || text.includes('Generating your answer')) {
+        alert('Nothing to copy');
         return;
       }
       
       navigator.clipboard.writeText(text).then(() => {
-        alert("✅ Copied to clipboard!");
-      }).catch(err => {
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = text;
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-        alert("✅ Copied to clipboard!");
+        alert('✅ Copied to clipboard!');
       });
     };
 
-    // ===== INITIALIZATION =====
-    
-    // Update proxy frame source with actual URL
-    proxyFrame.src = PROXY_URL;
-    
-    // Disable generate button until proxy is ready
-    generateBtn.disabled = true;
-    
-    console.log('🚀 Social Media Answer Generator loaded');
-    console.log('🔗 Proxy URL:', PROXY_URL);
-
-    // Allow Enter key to generate answer
-    questionInput.addEventListener('keypress', function(e) {
+    // Press Enter to generate
+    document.getElementById('question-input').addEventListener('keypress', function(e) {
       if (e.key === 'Enter') {
         generateBtn.click();
       }
     });
+
+    console.log('🚀 Social Media Generator loaded');
   </script>
 
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
