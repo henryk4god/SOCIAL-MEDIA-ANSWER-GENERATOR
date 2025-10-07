@@ -105,8 +105,8 @@
   <div id="result-container"></div>
 
   <script>
-    // REPLACE THIS WITH YOUR ACTUAL GAS WEB APP URL
-    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbyNTJR4wNkaXw4GV1qRoZKb0uLtoZj07NPN1CFmGFeBQG3bGRaSSvlcT4HzUxPu5V4j/exec";
+    // Your GAS Web App URL
+    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbzq3IiAfT-wsKjawOl1_lz_kjxk4cQkjcy64fOBc4-qz2zDq5exQDSEABeyfCvHFuvr/exec";
     
     let baseContent = "";
 
@@ -120,106 +120,29 @@
       resultContainer.style.display = "block";
 
       try {
-        // Use a proxy approach to avoid CORS issues
-        const response = await fetch(BACKEND_URL, {
-          method: 'POST',
-          mode: 'no-cors', // Important: Use no-cors mode
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: `question=${encodeURIComponent(question)}`
-        });
-
-        // Since we can't read the response directly with no-cors,
-        // we'll use a different approach - create a simple HTML form
-        submitViaForm(question);
+        // Method 1: Simple GET request (most reliable)
+        const response = await fetch(`${BACKEND_URL}?question=${encodeURIComponent(question)}&timestamp=${Date.now()}`);
         
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          baseContent = data.content;
+          resultContainer.textContent = baseContent;
+          resultContainer.className = "success";
+        } else {
+          resultContainer.textContent = "❌ Error: " + data.error;
+          resultContainer.className = "error";
+        }
       } catch (err) {
+        console.error('Fetch error:', err);
         resultContainer.textContent = "❌ Network Error: " + err.message;
         resultContainer.className = "error";
       }
     };
-
-    /**
-     * Alternative method: Submit via form to avoid CORS
-     */
-    function submitViaForm(question) {
-      const resultContainer = document.getElementById("result-container");
-      
-      // Create a hidden iframe to handle the response
-      const iframe = document.createElement('iframe');
-      iframe.name = 'gas-response-frame';
-      iframe.style.display = 'none';
-      document.body.appendChild(iframe);
-      
-      // Create a form
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = BACKEND_URL;
-      form.target = 'gas-response-frame';
-      
-      // Add question field
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = 'question';
-      input.value = question;
-      form.appendChild(input);
-      
-      // Handle response via iframe load
-      iframe.onload = function() {
-        try {
-          // Try to get the response from iframe
-          const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-          const responseText = iframeDoc.body.innerText;
-          
-          if (responseText) {
-            const data = JSON.parse(responseText);
-            if (data.success) {
-              baseContent = data.content;
-              resultContainer.textContent = baseContent;
-              resultContainer.className = "success";
-            } else {
-              resultContainer.textContent = "❌ Error: " + data.error;
-              resultContainer.className = "error";
-            }
-          }
-        } catch (e) {
-          resultContainer.textContent = "⚠️ Response received but could not parse. Check console for details.";
-          resultContainer.className = "error";
-          console.log('Raw response:', iframe.contentDocument?.body?.innerText);
-        }
-        
-        // Clean up
-        document.body.removeChild(iframe);
-        document.body.removeChild(form);
-      };
-      
-      document.body.appendChild(form);
-      form.submit();
-    }
-
-    /**
-     * Direct fetch method (for testing)
-     */
-    async function directFetch(question) {
-      try {
-        // Add random parameter to avoid caching
-        const url = `${BACKEND_URL}?timestamp=${Date.now()}`;
-        
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ question: question })
-        });
-        
-        const data = await response.json();
-        return data;
-      } catch (error) {
-        throw new Error('Failed to connect to server');
-      }
-    }
 
     function formatResult(platform) {
       if (!baseContent) return alert("Please generate an answer first.");
@@ -262,11 +185,9 @@
       });
     };
 
-    // Test backend connection on load
-    window.addEventListener('load', function() {
-      console.log('Social Media Answer Generator loaded');
-      console.log('Backend URL:', BACKEND_URL);
-    });
+    // Test backend connection
+    console.log('Social Media Answer Generator loaded');
+    console.log('Backend URL:', BACKEND_URL);
   </script>
 
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
