@@ -105,12 +105,29 @@
   <div id="result-container"></div>
 
   <script>
-    // Your GAS Web App URL
-    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbzq3IiAfT-wsKjawOl1_lz_kjxk4cQkjcy64fOBc4-qz2zDq5exQDSEABeyfCvHFuvr/exec";
-    
+    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbwdkyUj28a9evxseIe6jhE5hrVIpIjvDXURYSlzlMiZFj65WByCTLtuYaxs-XnhaeFq/exec";
     let baseContent = "";
+    let requestId = 0;
 
-    document.getElementById("generate-btn").onclick = async () => {
+    // Global callback function for JSONP
+    window.handleJSONPResponse = function(data) {
+      const resultContainer = document.getElementById("result-container");
+      
+      if (data.success) {
+        baseContent = data.content;
+        resultContainer.textContent = baseContent;
+        resultContainer.className = "success";
+      } else {
+        resultContainer.textContent = "❌ Error: " + data.error;
+        resultContainer.className = "error";
+      }
+      
+      // Clean up script tag
+      const oldScript = document.getElementById('jsonp-script');
+      if (oldScript) oldScript.remove();
+    };
+
+    document.getElementById("generate-btn").onclick = function() {
       const question = document.getElementById("question-input").value.trim();
       if (!question) return alert("Please enter a question.");
 
@@ -119,29 +136,25 @@
       resultContainer.className = "loading";
       resultContainer.style.display = "block";
 
-      try {
-        // Method 1: Simple GET request (most reliable)
-        const response = await fetch(`${BACKEND_URL}?question=${encodeURIComponent(question)}&timestamp=${Date.now()}`);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          baseContent = data.content;
-          resultContainer.textContent = baseContent;
-          resultContainer.className = "success";
-        } else {
-          resultContainer.textContent = "❌ Error: " + data.error;
+      // JSONP approach - create script tag to bypass CORS
+      const script = document.createElement('script');
+      script.id = 'jsonp-script';
+      script.src = `${BACKEND_URL}?question=${encodeURIComponent(question)}&callback=handleJSONPResponse&_=${Date.now()}`;
+      
+      document.head.appendChild(script);
+      
+      // Set timeout for error handling
+      setTimeout(() => {
+        const resultContainer = document.getElementById("result-container");
+        if (resultContainer.textContent === "⏳ Generating answer...") {
+          resultContainer.textContent = "❌ Request timeout. Please try again.";
           resultContainer.className = "error";
+          
+          // Clean up script tag
+          const oldScript = document.getElementById('jsonp-script');
+          if (oldScript) oldScript.remove();
         }
-      } catch (err) {
-        console.error('Fetch error:', err);
-        resultContainer.textContent = "❌ Network Error: " + err.message;
-        resultContainer.className = "error";
-      }
+      }, 30000); // 30 second timeout
     };
 
     function formatResult(platform) {
@@ -185,8 +198,7 @@
       });
     };
 
-    // Test backend connection
-    console.log('Social Media Answer Generator loaded');
+    console.log('Social Media Answer Generator loaded with JSONP support');
     console.log('Backend URL:', BACKEND_URL);
   </script>
 
