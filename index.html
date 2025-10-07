@@ -1,423 +1,304 @@
 <div id="answer-widget">
   <style>
     :root {
-      --primary-color: #007bff;
-      --bg-color: #ffffff;
-      --text-color: #333333;
-      --card-shadow: rgba(0, 0, 0, 0.1);
+      --primary-color: #4f46e5;
+      --bg-color: #f9fafb;
+      --text-color: #111827;
+      --card-color: #ffffff;
     }
 
     #answer-widget {
       font-family: 'Poppins', sans-serif;
-      max-width: 650px;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      padding: 2rem;
+      border-radius: 1rem;
+      max-width: 800px;
       margin: auto;
-      background: var(--bg-color);
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 4px 20px var(--card-shadow);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
     }
 
     #answer-widget h2 {
-      color: var(--primary-color);
       text-align: center;
+      margin-bottom: 1rem;
+      font-weight: 600;
     }
 
-    input, button {
+    #question-input {
       width: 100%;
-      padding: 12px;
-      margin: 8px 0;
-      font-size: 16px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
+      padding: 1rem;
+      border: 2px solid var(--primary-color);
+      border-radius: 0.75rem;
+      margin-bottom: 1rem;
+      font-size: 1rem;
     }
 
-    button {
-      background: var(--primary-color);
-      color: white;
-      border: none;
-      cursor: pointer;
-      transition: background 0.3s ease;
-    }
-
-    button:hover {
-      background: #0056b3;
-    }
-
-    button:disabled {
-      background: #6c757d;
-      cursor: not-allowed;
-    }
-
-    .social-buttons {
+    .button-group {
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 10px;
+      gap: 0.5rem;
+      justify-content: center;
+      margin-bottom: 1rem;
     }
 
-    .social-buttons button {
-      flex: 1;
-      background: #6c757d;
+    .platform-btn, #generate-btn, #copy-btn {
+      background-color: var(--primary-color);
+      color: white;
+      padding: 0.75rem 1rem;
+      border: none;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-size: 0.9rem;
     }
 
-    .result-container {
-      margin-top: 20px;
-      padding: 15px;
-      background: #f8f9fa;
-      border-radius: 10px;
-      white-space: pre-line;
-      animation: fadeIn 0.4s ease-in-out;
-      border-left: 4px solid var(--primary-color);
+    .platform-btn:hover, #generate-btn:hover, #copy-btn:hover {
+      background-color: #4338ca;
     }
 
-    .copy-btn {
-      background: #28a745;
-      margin-top: 10px;
+    #result-container {
+      background: var(--card-color);
+      padding: 1.5rem;
+      border-radius: 1rem;
+      margin-top: 1rem;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+      white-space: pre-wrap;
+      line-height: 1.6;
+      display: none;
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
+    .stats-container {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: var(--card-color);
+      border-radius: 0.5rem;
+      font-size: 0.8rem;
+      display: none;
+    }
+
+    .loading {
+      opacity: 0.7;
+      pointer-events: none;
     }
 
     @media (max-width: 600px) {
-      .social-buttons {
+      .button-group {
         flex-direction: column;
       }
     }
   </style>
 
-  <h2>Answer To Your Ask Questions</h2>
-  <input type="text" id="question" placeholder="Ask your question here...">
-  <button onclick="fetchAnswer()">Get The Answer</button>
+  <h2>🎯 Answer To Your Ask Questions</h2>
+  <input id="question-input" placeholder="Enter your question..." />
 
-  <div class="social-buttons">
-    <button onclick="formatResult('facebook')">📘 Facebook</button>
-    <button onclick="formatResult('instagram')">📸 Instagram</button>
-    <button onclick="formatResult('tiktok')">🎵 TikTok</button>
-    <button onclick="formatResult('youtube')">🎬 YouTube</button>
+  <div class="button-group">
+    <button id="generate-btn">Get The Answer</button>
+    <button class="platform-btn" onclick="formatResult('facebook')">Facebook</button>
+    <button class="platform-btn" onclick="formatResult('instagram')">Instagram</button>
+    <button class="platform-btn" onclick="formatResult('tiktok')">TikTok</button>
+    <button class="platform-btn" onclick="formatResult('youtube')">YouTube</button>
+    <button id="copy-btn">📋 Copy</button>
   </div>
 
-  <div id="result" class="result-container" style="display: none;"></div>
-  <button class="copy-btn" style="display: none;" onclick="copyResult()">📋 Copy to Clipboard</button>
+  <div id="result-container"></div>
+
+  <div class="stats-container" id="stats-container">
+    <strong>Usage Stats:</strong>
+    <div id="stats-content"></div>
+  </div>
 
   <script>
-   // SOCIAL MEDIA ANSWER GENERATOR - Secure Frontend
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxueyf86rl5VkA0UUyFwqZ1HnIIdrn_1VIRLxvEE22yW3L9P-6yCx7A2SszLYo9Cb3l/exec"; // Replace with your deployed web app URL
-
-// Global variables
-let currentResult = null;
-
-// Initialize when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Social Media Answer Generator Frontend Loaded');
+    // 🔧 CONFIGURATION - Replace with your deployed GAS Web App URL
+    const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbxwr85XkfWgsjilBVuh7YTeTX5fCIiN_Nlsk9PsliClzskDhk2M2rQ7aeN76bRQvtIL/exec';
     
-    // Add enter key support for the question input
-    document.getElementById('question').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            fetchAnswer();
-        }
+    let baseContent = "";
+    let currentPlatform = "original";
+
+    // Initialize the widget
+    document.addEventListener('DOMContentLoaded', function() {
+      loadStats();
     });
-});
 
-async function fetchAnswer() {
-    const questionInput = document.getElementById('question');
-    const question = questionInput.value.trim();
-    
-    if (!question) {
-        showMessage('Please enter a question.', 'error');
+    document.getElementById("generate-btn").onclick = async () => {
+      const question = document.getElementById("question-input").value.trim();
+      if (!question) {
+        alert("Please enter a question.");
         return;
-    }
+      }
 
-    // Show loading state
-    const getAnswerBtn = document.querySelector('button[onclick="fetchAnswer()"]');
-    const originalText = getAnswerBtn.textContent;
-    getAnswerBtn.textContent = 'Generating Answer...';
-    getAnswerBtn.disabled = true;
+      // Show loading state
+      const generateBtn = document.getElementById("generate-btn");
+      const originalText = generateBtn.textContent;
+      generateBtn.textContent = "⏳ Generating...";
+      generateBtn.classList.add('loading');
 
-    try {
-        const response = await fetch(SCRIPT_URL, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                question: question,
-                maxTokens: 1500,
-                temperature: 0.7
-            })
+      document.getElementById("result-container").textContent = "⏳ Generating answer...";
+      document.getElementById("result-container").style.display = "block";
+      document.getElementById("stats-container").style.display = "none";
+
+      try {
+        const response = await fetch(BACKEND_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            action: "generateAnswer",
+            question: question
+          })
         });
 
         const data = await response.json();
         
         if (data.success) {
-            currentResult = data;
-            displayResult(data);
-            showMessage('Answer generated successfully!', 'success');
+          baseContent = data.content;
+          currentPlatform = "original";
+          document.getElementById("result-container").textContent = baseContent;
+          showSuccess("Answer generated successfully!");
+          
+          // Refresh stats after successful generation
+          loadStats();
         } else {
-            showMessage('Error: ' + data.error, 'error');
-            console.error('Backend error:', data.error);
+          document.getElementById("result-container").textContent = "❌ Error: " + data.error;
+          showError(data.error);
         }
-    } catch (error) {
-        showMessage('Request failed: ' + error.message, 'error');
-        console.error('Fetch error:', error);
-    } finally {
-        // Reset button state
-        getAnswerBtn.textContent = originalText;
-        getAnswerBtn.disabled = false;
-    }
-}
+      } catch (err) {
+        document.getElementById("result-container").textContent = "❌ Network Error: " + err.message;
+        showError("Network error: " + err.message);
+      } finally {
+        // Restore button state
+        generateBtn.textContent = originalText;
+        generateBtn.classList.remove('loading');
+      }
+    };
 
-function displayResult(data) {
-    const resultDiv = document.getElementById('result');
-    const copyBtn = document.querySelector('.copy-btn');
-    
-    // Display the original formatted content
-    resultDiv.innerHTML = formatContentForDisplay(data.originalContent);
-    resultDiv.style.display = 'block';
-    copyBtn.style.display = 'block';
-    
-    // Scroll to result smoothly
-    resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
-
-function formatResult(platform) {
-    if (!currentResult) {
-        showMessage('No result available. Please generate an answer first.', 'error');
+    function formatResult(platform) {
+      if (!baseContent) {
+        alert("Please generate an answer first.");
         return;
-    }
+      }
 
-    const resultDiv = document.getElementById('result');
-    let formattedContent = '';
-    
-    switch (platform) {
+      let formattedContent = "";
+      currentPlatform = platform;
+
+      switch (platform) {
         case "facebook":
-            formattedContent = `📘 <strong>Facebook Post:</strong>\n${currentResult.originalContent}`;
-            break;
+          formattedContent = `📘 FACEBOOK POST\n\n${baseContent}`;
+          break;
+        
         case "instagram":
-            formattedContent = `📸 <strong>Instagram Caption:</strong>\n${currentResult.originalContent}`;
-            break;
+          formattedContent = `📸 INSTAGRAM CAPTION\n\n${baseContent}\n\n🔄 Double tap if you found this helpful!\n💬 Comment your thoughts below!\n📱 Share with someone who needs this!`;
+          break;
+        
         case "tiktok":
-            formattedContent = `🎵 <strong>TikTok Hook:</strong>\n${currentResult.originalContent}`;
-            break;
+          // TikTok format with more engaging hooks
+          const lines = baseContent.split('\n');
+          const firstLine = lines[0];
+          const restContent = lines.slice(1).join('\n');
+          formattedContent = `🎵 TIKTOK SCRIPT\n\nHOOK: "Stop scrolling! This will change everything... ⬇️"\n\n${firstLine}\n\n${restContent}\n\n👀 Wait for the surprise at the end!\n💡 Follow for daily tips!`;
+          break;
+        
         case "youtube":
-            formattedContent = `🎬 <strong>YouTube Video Script:</strong>\n\n<em>Intro:</em>\n${currentResult.originalContent}`;
-            break;
+          formattedContent = `🎬 YOUTUBE SCRIPT\n\nINTRO: "Hey everyone! Welcome back to the channel. Today we're diving into a question I get asked ALL the time..."\n\nMAIN CONTENT:\n${baseContent}\n\nOUTRO: "If you found this helpful, smash that like button and subscribe for more content like this every week!"`;
+          break;
+        
         default:
-            formattedContent = currentResult.originalContent;
+          formattedContent = baseContent;
+      }
+
+      // Add platform-specific hashtags
+      const hashtags = getPlatformHashtags(platform);
+      formattedContent += `\n\n${hashtags}`;
+
+      document.getElementById("result-container").textContent = formattedContent;
+      showSuccess(`Formatted for ${platform.charAt(0).toUpperCase() + platform.slice(1)}!`);
     }
-    
-    resultDiv.innerHTML = formatContentForDisplay(formattedContent);
-    showMessage(`Formatted for ${platform.charAt(0).toUpperCase() + platform.slice(1)}!`, 'success');
-}
 
-function formatContentForDisplay(content) {
-    // Convert plain text to formatted HTML with line breaks and basic styling
-    return content
-        .split('\n')
-        .map(line => {
-            const trimmedLine = line.trim();
-            if (!trimmedLine) return '<br>';
-            
-            // Style titles (lines with emojis or short lines)
-            if (trimmedLine.includes('🧠') || (trimmedLine.length < 60 && !trimmedLine.startsWith('-') && !trimmedLine.match(/^\d/))) {
-                return `<div class="result-title">${trimmedLine}</div>`;
-            }
-            
-            // Style bullet points
-            if (trimmedLine.startsWith('-') || trimmedLine.match(/^\d\./)) {
-                return `<div class="result-bullet">${trimmedLine}</div>`;
-            }
-            
-            // Style CTA section
-            if (trimmedLine.includes('❤️') || trimmedLine.includes('Like') || trimmedLine.includes('Follow')) {
-                return `<div class="result-cta">${trimmedLine}</div>`;
-            }
-            
-            // Style hashtags
-            if (trimmedLine.startsWith('#')) {
-                return `<div class="result-hashtags">${trimmedLine}</div>`;
-            }
-            
-            return `<div>${trimmedLine}</div>`;
-        })
-        .join('');
-}
+    function getPlatformHashtags(platform) {
+      const baseHashtags = "#SocialMediaTips #ContentCreation #DigitalMarketing";
+      
+      switch (platform) {
+        case "facebook":
+          return `${baseHashtags} #FacebookMarketing #SocialMediaStrategy`;
+        case "instagram":
+          return `${baseHashtags} #InstagramTips #InstaGrowth #ContentCreator`;
+        case "tiktok":
+          return `${baseHashtags} #TikTokTips #ViralContent #ForYouPage`;
+        case "youtube":
+          return `${baseHashtags} #YouTubeTips #VideoMarketing #CreatorEconomy`;
+        default:
+          return baseHashtags;
+      }
+    }
 
-async function copyResult() {
-    if (!currentResult) {
-        showMessage('No result to copy.', 'error');
+    document.getElementById("copy-btn").onclick = async () => {
+      const text = document.getElementById("result-container").textContent;
+      if (!text || text === "⏳ Generating answer...") {
+        alert("Nothing to copy. Please generate an answer first.");
         return;
-    }
+      }
 
-    try {
-        // Get plain text without HTML formatting for copying
-        const textToCopy = document.getElementById('result').innerText;
-        await navigator.clipboard.writeText(textToCopy);
-        showMessage('Copied to clipboard!', 'success');
-        
-        // Visual feedback
-        const copyBtn = document.querySelector('.copy-btn');
-        const originalText = copyBtn.textContent;
-        copyBtn.textContent = '✓ Copied!';
-        setTimeout(() => {
-            copyBtn.textContent = originalText;
-        }, 2000);
-    } catch (error) {
-        showMessage('Failed to copy: ' + error.message, 'error');
-        console.error('Copy error:', error);
-    }
-}
+      try {
+        await navigator.clipboard.writeText(text);
+        showSuccess("Copied to clipboard! 📋");
+      } catch (err) {
+        // Fallback for older browsers
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+        showSuccess("Copied to clipboard! 📋");
+      }
+    };
 
-function showMessage(message, type) {
-    // Remove any existing message
-    const existingMessage = document.querySelector('.message-popup');
-    if (existingMessage) {
-        existingMessage.remove();
-    }
-    
-    // Create new message
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message-popup message-${type}`;
-    messageDiv.textContent = message;
-    messageDiv.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 12px 20px;
-        border-radius: 8px;
-        color: white;
-        font-weight: 500;
-        z-index: 1000;
-        animation: slideIn 0.3s ease-out;
-        max-width: 300px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    `;
-    
-    if (type === 'success') {
-        messageDiv.style.background = '#28a745';
-    } else if (type === 'error') {
-        messageDiv.style.background = '#dc3545';
-    } else {
-        messageDiv.style.background = '#007bff';
-    }
-    
-    document.body.appendChild(messageDiv);
-    
-    // Auto remove after 3 seconds
-    setTimeout(() => {
-        if (messageDiv.parentNode) {
-            messageDiv.style.animation = 'slideOut 0.3s ease-in';
-            setTimeout(() => {
-                if (messageDiv.parentNode) {
-                    messageDiv.remove();
-                }
-            }, 300);
-        }
-    }, 3000);
-}
-
-// Add these styles to your existing CSS
-const additionalStyles = `
-@keyframes slideIn {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-}
-
-@keyframes slideOut {
-    from { transform: translateX(0); opacity: 1; }
-    to { transform: translateX(100%); opacity: 0; }
-}
-
-.result-title {
-    font-weight: 600;
-    font-size: 1.1em;
-    margin-bottom: 10px;
-    color: #2c3e50;
-}
-
-.result-bullet {
-    margin: 8px 0;
-    padding-left: 10px;
-    border-left: 3px solid var(--primary-color);
-}
-
-.result-cta {
-    margin: 15px 0;
-    padding: 10px;
-    background: rgba(0, 123, 255, 0.1);
-    border-radius: 6px;
-    font-weight: 500;
-    text-align: center;
-}
-
-.result-hashtags {
-    margin-top: 15px;
-    color: #666;
-    font-style: italic;
-}
-
-/* Loading animation */
-@keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.5; }
-    100% { opacity: 1; }
-}
-
-.loading {
-    animation: pulse 1.5s ease-in-out infinite;
-}
-`;
-
-// Inject additional styles
-const styleSheet = document.createElement('style');
-styleSheet.textContent = additionalStyles;
-document.head.appendChild(styleSheet);
-
-// Utility function to test backend connection
-async function testBackendConnection() {
-    try {
-        showMessage('Testing backend connection...', 'info');
-        
-        const response = await fetch(SCRIPT_URL, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                method: 'testAPI'
-            })
-        });
-
+    async function loadStats() {
+      try {
+        const response = await fetch(`${BACKEND_URL}?action=getStats`);
         const data = await response.json();
         
         if (data.success) {
-            showMessage('Backend connection successful!', 'success');
-        } else {
-            showMessage('Backend test failed: ' + data.error, 'error');
+          const stats = data.stats;
+          const statsContent = `
+            Today: ${stats.todayRequests}/${stats.dailyLimit} requests
+            | Success Rate: ${stats.successRate}%
+            | Total: ${stats.totalRequests} requests
+          `;
+          document.getElementById("stats-content").textContent = statsContent;
+          document.getElementById("stats-container").style.display = 'block';
         }
-    } catch (error) {
-        showMessage('Connection test failed: ' + error.message, 'error');
+      } catch (err) {
+        console.log('Could not load stats:', err);
+      }
     }
-}
 
-// Add a test button (optional - you can remove this)
-function addTestButton() {
-    const testBtn = document.createElement('button');
-    testBtn.textContent = 'Test Connection';
-    testBtn.style.cssText = `
-        background: #6c757d;
-        margin-top: 10px;
-        font-size: 12px;
-        padding: 5px 10px;
-    `;
-    testBtn.onclick = testBackendConnection;
-    
-    const widget = document.getElementById('answer-widget');
-    widget.appendChild(testBtn);
-}
+    function showSuccess(message) {
+      // Simple success notification
+      const originalText = document.getElementById("copy-btn").textContent;
+      document.getElementById("copy-btn").textContent = "✅ " + message;
+      setTimeout(() => {
+        document.getElementById("copy-btn").textContent = originalText;
+      }, 2000);
+    }
 
-// Uncomment the line below if you want to add a test button
-// addTestButton();
+    function showError(message) {
+      alert("Error: " + message);
+    }
+
+    // Keyboard shortcut support
+    document.getElementById("question-input").addEventListener("keypress", function(e) {
+      if (e.key === "Enter") {
+        document.getElementById("generate-btn").click();
+      }
+    });
+
+    // Auto-resize input based on content
+    document.getElementById("question-input").addEventListener("input", function() {
+      this.style.height = "auto";
+      this.style.height = (this.scrollHeight) + "px";
+    });
   </script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
 </div>
