@@ -107,197 +107,253 @@
     <div id="stats-content"></div>
   </div>
 
-  <script>
-    // 🔧 CONFIGURATION - Replace with your deployed GAS Web App URL
-    const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbxwr85XkfWgsjilBVuh7YTeTX5fCIiN_Nlsk9PsliClzskDhk2M2rQ7aeN76bRQvtIL/exec';
+  <script>// 🔧 CONFIGURATION - Use your deployed GAS Web App URL
+const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbxwr85XkfWgsjilBVuh7YTeTX5fCIiN_Nlsk9PsliClzskDhk2M2rQ7aeN76bRQvtIL/exec';
+
+let baseContent = "";
+let currentPlatform = "original";
+
+// Initialize the widget
+document.addEventListener('DOMContentLoaded', function() {
+  loadStats();
+});
+
+document.getElementById("generate-btn").onclick = async () => {
+  const question = document.getElementById("question-input").value.trim();
+  if (!question) {
+    alert("Please enter a question.");
+    return;
+  }
+
+  // Show loading state
+  const generateBtn = document.getElementById("generate-btn");
+  const originalText = generateBtn.textContent;
+  generateBtn.textContent = "⏳ Generating...";
+  generateBtn.classList.add('loading');
+
+  document.getElementById("result-container").textContent = "⏳ Generating answer...";
+  document.getElementById("result-container").style.display = "block";
+  document.getElementById("stats-container").style.display = "none";
+
+  try {
+    // 🔥 UPDATED: Use GET with parameters instead of POST to avoid CORS preflight
+    const url = `${BACKEND_URL}?action=generateAnswer&question=${encodeURIComponent(question)}`;
     
-    let baseContent = "";
-    let currentPlatform = "original";
-
-    // Initialize the widget
-    document.addEventListener('DOMContentLoaded', function() {
-      loadStats();
+    const response = await fetch(url, {
+      method: 'GET',
+      mode: 'no-cors' // This avoids CORS preflight but limits response reading
+    }).catch(async () => {
+      // Fallback: Use Google Apps Script as a proxy via JSONP-style callback
+      return await fetchViaJSONP(question);
     });
 
-    document.getElementById("generate-btn").onclick = async () => {
-      const question = document.getElementById("question-input").value.trim();
-      if (!question) {
-        alert("Please enter a question.");
-        return;
-      }
-
-      // Show loading state
-      const generateBtn = document.getElementById("generate-btn");
-      const originalText = generateBtn.textContent;
-      generateBtn.textContent = "⏳ Generating...";
-      generateBtn.classList.add('loading');
-
-      document.getElementById("result-container").textContent = "⏳ Generating answer...";
-      document.getElementById("result-container").style.display = "block";
-      document.getElementById("stats-container").style.display = "none";
-
-      try {
-        const response = await fetch(BACKEND_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            action: "generateAnswer",
-            question: question
-          })
-        });
-
-        const data = await response.json();
-        
-        if (data.success) {
-          baseContent = data.content;
-          currentPlatform = "original";
-          document.getElementById("result-container").textContent = baseContent;
-          showSuccess("Answer generated successfully!");
-          
-          // Refresh stats after successful generation
-          loadStats();
-        } else {
-          document.getElementById("result-container").textContent = "❌ Error: " + data.error;
-          showError(data.error);
-        }
-      } catch (err) {
-        document.getElementById("result-container").textContent = "❌ Network Error: " + err.message;
-        showError("Network error: " + err.message);
-      } finally {
-        // Restore button state
-        generateBtn.textContent = originalText;
-        generateBtn.classList.remove('loading');
-      }
-    };
-
-    function formatResult(platform) {
-      if (!baseContent) {
-        alert("Please generate an answer first.");
-        return;
-      }
-
-      let formattedContent = "";
-      currentPlatform = platform;
-
-      switch (platform) {
-        case "facebook":
-          formattedContent = `📘 FACEBOOK POST\n\n${baseContent}`;
-          break;
-        
-        case "instagram":
-          formattedContent = `📸 INSTAGRAM CAPTION\n\n${baseContent}\n\n🔄 Double tap if you found this helpful!\n💬 Comment your thoughts below!\n📱 Share with someone who needs this!`;
-          break;
-        
-        case "tiktok":
-          // TikTok format with more engaging hooks
-          const lines = baseContent.split('\n');
-          const firstLine = lines[0];
-          const restContent = lines.slice(1).join('\n');
-          formattedContent = `🎵 TIKTOK SCRIPT\n\nHOOK: "Stop scrolling! This will change everything... ⬇️"\n\n${firstLine}\n\n${restContent}\n\n👀 Wait for the surprise at the end!\n💡 Follow for daily tips!`;
-          break;
-        
-        case "youtube":
-          formattedContent = `🎬 YOUTUBE SCRIPT\n\nINTRO: "Hey everyone! Welcome back to the channel. Today we're diving into a question I get asked ALL the time..."\n\nMAIN CONTENT:\n${baseContent}\n\nOUTRO: "If you found this helpful, smash that like button and subscribe for more content like this every week!"`;
-          break;
-        
-        default:
-          formattedContent = baseContent;
-      }
-
-      // Add platform-specific hashtags
-      const hashtags = getPlatformHashtags(platform);
-      formattedContent += `\n\n${hashtags}`;
-
-      document.getElementById("result-container").textContent = formattedContent;
-      showSuccess(`Formatted for ${platform.charAt(0).toUpperCase() + platform.slice(1)}!`);
-    }
-
-    function getPlatformHashtags(platform) {
-      const baseHashtags = "#SocialMediaTips #ContentCreation #DigitalMarketing";
-      
-      switch (platform) {
-        case "facebook":
-          return `${baseHashtags} #FacebookMarketing #SocialMediaStrategy`;
-        case "instagram":
-          return `${baseHashtags} #InstagramTips #InstaGrowth #ContentCreator`;
-        case "tiktok":
-          return `${baseHashtags} #TikTokTips #ViralContent #ForYouPage`;
-        case "youtube":
-          return `${baseHashtags} #YouTubeTips #VideoMarketing #CreatorEconomy`;
-        default:
-          return baseHashtags;
-      }
-    }
-
-    document.getElementById("copy-btn").onclick = async () => {
-      const text = document.getElementById("result-container").textContent;
-      if (!text || text === "⏳ Generating answer...") {
-        alert("Nothing to copy. Please generate an answer first.");
-        return;
-      }
-
-      try {
-        await navigator.clipboard.writeText(text);
-        showSuccess("Copied to clipboard! 📋");
-      } catch (err) {
-        // Fallback for older browsers
-        const textArea = document.createElement("textarea");
-        textArea.value = text;
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textArea);
-        showSuccess("Copied to clipboard! 📋");
-      }
-    };
-
-    async function loadStats() {
-      try {
-        const response = await fetch(`${BACKEND_URL}?action=getStats`);
-        const data = await response.json();
-        
-        if (data.success) {
-          const stats = data.stats;
-          const statsContent = `
-            Today: ${stats.todayRequests}/${stats.dailyLimit} requests
-            | Success Rate: ${stats.successRate}%
-            | Total: ${stats.totalRequests} requests
-          `;
-          document.getElementById("stats-content").textContent = statsContent;
-          document.getElementById("stats-container").style.display = 'block';
-        }
-      } catch (err) {
-        console.log('Could not load stats:', err);
-      }
-    }
-
-    function showSuccess(message) {
-      // Simple success notification
-      const originalText = document.getElementById("copy-btn").textContent;
-      document.getElementById("copy-btn").textContent = "✅ " + message;
+    // If we used no-cors, we can't read the response directly
+    // So we'll use a different approach - create a hidden iframe
+    if (response && response.type === 'opaque') {
+      // The response went through but we can't read it due to CORS
+      // Wait a bit and try to get the result via a separate GET request
       setTimeout(() => {
-        document.getElementById("copy-btn").textContent = originalText;
-      }, 2000);
+        checkForGeneratedResult(question);
+      }, 3000);
+    } else {
+      const data = await response.json();
+      handleResponseData(data);
     }
-
-    function showError(message) {
-      alert("Error: " + message);
+    
+  } catch (err) {
+    // 🔥 FALLBACK: Use JSONP approach for CORS bypass
+    try {
+      await fetchViaJSONP(question);
+    } catch (fallbackError) {
+      document.getElementById("result-container").textContent = "❌ Error: Could not connect to server. Please try again.";
+      showError("Connection failed: " + fallbackError.message);
     }
+  } finally {
+    // Restore button state
+    generateBtn.textContent = originalText;
+    generateBtn.classList.remove('loading');
+  }
+};
 
-    // Keyboard shortcut support
-    document.getElementById("question-input").addEventListener("keypress", function(e) {
-      if (e.key === "Enter") {
-        document.getElementById("generate-btn").click();
+// 🔥 NEW: JSONP-style workaround for CORS
+function fetchViaJSONP(question) {
+  return new Promise((resolve, reject) => {
+    const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+    
+    // Create script tag
+    const script = document.createElement('script');
+    const url = `${BACKEND_URL}?action=generateAnswer&question=${encodeURIComponent(question)}&callback=${callbackName}`;
+    
+    script.src = url;
+    script.onerror = reject;
+    
+    // Define the callback function
+    window[callbackName] = function(data) {
+      delete window[callbackName];
+      document.body.removeChild(script);
+      handleResponseData(data);
+      resolve(data);
+    };
+    
+    document.body.appendChild(script);
+  });
+}
+
+// 🔥 NEW: Handle response data
+function handleResponseData(data) {
+  if (data.success) {
+    baseContent = data.content;
+    currentPlatform = "original";
+    document.getElementById("result-container").textContent = baseContent;
+    showSuccess("Answer generated successfully!");
+    loadStats();
+  } else {
+    document.getElementById("result-container").textContent = "❌ Error: " + data.error;
+    showError(data.error);
+  }
+}
+
+// 🔥 NEW: Check for result after submission
+function checkForGeneratedResult(question) {
+  const checkUrl = `${BACKEND_URL}?action=getLastResult&question=${encodeURIComponent(question)}`;
+  
+  fetch(checkUrl)
+    .then(response => response.json())
+    .then(data => {
+      if (data.success && data.content) {
+        handleResponseData(data);
+      } else {
+        document.getElementById("result-container").textContent = "❌ Request submitted but could not retrieve response. Please refresh and try again.";
       }
+    })
+    .catch(err => {
+      console.log('Check result error:', err);
     });
+}
 
-    // Auto-resize input based on content
-    document.getElementById("question-input").addEventListener("input", function() {
-      this.style.height = "auto";
-      this.style.height = (this.scrollHeight) + "px";
-    });
+// Keep all your other functions the same (formatResult, getPlatformHashtags, copy-btn, loadStats, etc.)
+function formatResult(platform) {
+  if (!baseContent) {
+    alert("Please generate an answer first.");
+    return;
+  }
+
+  let formattedContent = "";
+  currentPlatform = platform;
+
+  switch (platform) {
+    case "facebook":
+      formattedContent = `📘 FACEBOOK POST\n\n${baseContent}`;
+      break;
+    
+    case "instagram":
+      formattedContent = `📸 INSTAGRAM CAPTION\n\n${baseContent}\n\n🔄 Double tap if you found this helpful!\n💬 Comment your thoughts below!\n📱 Share with someone who needs this!`;
+      break;
+    
+    case "tiktok":
+      const lines = baseContent.split('\n');
+      const firstLine = lines[0];
+      const restContent = lines.slice(1).join('\n');
+      formattedContent = `🎵 TIKTOK SCRIPT\n\nHOOK: "Stop scrolling! This will change everything... ⬇️"\n\n${firstLine}\n\n${restContent}\n\n👀 Wait for the surprise at the end!\n💡 Follow for daily tips!`;
+      break;
+    
+    case "youtube":
+      formattedContent = `🎬 YOUTUBE SCRIPT\n\nINTRO: "Hey everyone! Welcome back to the channel. Today we're diving into a question I get asked ALL the time..."\n\nMAIN CONTENT:\n${baseContent}\n\nOUTRO: "If you found this helpful, smash that like button and subscribe for more content like this every week!"`;
+      break;
+    
+    default:
+      formattedContent = baseContent;
+  }
+
+  const hashtags = getPlatformHashtags(platform);
+  formattedContent += `\n\n${hashtags}`;
+
+  document.getElementById("result-container").textContent = formattedContent;
+  showSuccess(`Formatted for ${platform.charAt(0).toUpperCase() + platform.slice(1)}!`);
+}
+
+function getPlatformHashtags(platform) {
+  const baseHashtags = "#SocialMediaTips #ContentCreation #DigitalMarketing";
+  
+  switch (platform) {
+    case "facebook":
+      return `${baseHashtags} #FacebookMarketing #SocialMediaStrategy`;
+    case "instagram":
+      return `${baseHashtags} #InstagramTips #InstaGrowth #ContentCreator`;
+    case "tiktok":
+      return `${baseHashtags} #TikTokTips #ViralContent #ForYouPage`;
+    case "youtube":
+      return `${baseHashtags} #YouTubeTips #VideoMarketing #CreatorEconomy`;
+    default:
+      return baseHashtags;
+  }
+}
+
+document.getElementById("copy-btn").onclick = async () => {
+  const text = document.getElementById("result-container").textContent;
+  if (!text || text === "⏳ Generating answer...") {
+    alert("Nothing to copy. Please generate an answer first.");
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+    showSuccess("Copied to clipboard! 📋");
+  } catch (err) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textArea);
+    showSuccess("Copied to clipboard! 📋");
+  }
+};
+
+async function loadStats() {
+  try {
+    const response = await fetch(`${BACKEND_URL}?action=getStats`);
+    const data = await response.json();
+    
+    if (data.success) {
+      const stats = data.stats;
+      const statsContent = `
+        Today: ${stats.todayRequests}/${stats.dailyLimit} requests
+        | Success Rate: ${stats.successRate}%
+        | Total: ${stats.totalRequests} requests
+      `;
+      document.getElementById("stats-content").textContent = statsContent;
+      document.getElementById("stats-container").style.display = 'block';
+    }
+  } catch (err) {
+    console.log('Could not load stats:', err);
+  }
+}
+
+function showSuccess(message) {
+  const originalText = document.getElementById("copy-btn").textContent;
+  document.getElementById("copy-btn").textContent = "✅ " + message;
+  setTimeout(() => {
+    document.getElementById("copy-btn").textContent = originalText;
+  }, 2000);
+}
+
+function showError(message) {
+  alert("Error: " + message);
+}
+
+// Keyboard shortcut support
+document.getElementById("question-input").addEventListener("keypress", function(e) {
+  if (e.key === "Enter") {
+    document.getElementById("generate-btn").click();
+  }
+});
+
+// Auto-resize input based on content
+document.getElementById("question-input").addEventListener("input", function() {
+  this.style.height = "auto";
+  this.style.height = (this.scrollHeight) + "px";
+});
   </script>
 
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
