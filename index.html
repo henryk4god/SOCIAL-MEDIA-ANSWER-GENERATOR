@@ -1,4 +1,3 @@
-
 <div id="answer-widget">
   <style>
     :root {
@@ -68,6 +67,22 @@
       display: none;
     }
 
+    .loading {
+      color: #6b7280;
+      font-style: italic;
+    }
+
+    .error {
+      color: #dc2626;
+      background-color: #fef2f2;
+      border: 1px solid #fecaca;
+    }
+
+    .success {
+      color: #065f46;
+      background-color: #f0fdf4;
+    }
+
     @media (max-width: 600px) {
       .button-group {
         flex-direction: column;
@@ -90,8 +105,8 @@
   <div id="result-container"></div>
 
   <script>
-    // REPLACE THIS WITH YOUR GAS WEB APP URL AFTER DEPLOYMENT
-    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbzkP7VHyXf8Idkr6vVe5knrwmd1xTgSIiRYrwK4zU1jgx25xEChGawtXIrUo8eAjXG3/exec";
+    // REPLACE THIS WITH YOUR ACTUAL GAS WEB APP URL
+    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbyNTJR4wNkaXw4GV1qRoZKb0uLtoZj07NPN1CFmGFeBQG3bGRaSSvlcT4HzUxPu5V4j/exec";
     
     let baseContent = "";
 
@@ -99,35 +114,117 @@
       const question = document.getElementById("question-input").value.trim();
       if (!question) return alert("Please enter a question.");
 
-      document.getElementById("result-container").textContent = "⏳ Generating answer...";
-      document.getElementById("result-container").style.display = "block";
+      const resultContainer = document.getElementById("result-container");
+      resultContainer.textContent = "⏳ Generating answer...";
+      resultContainer.className = "loading";
+      resultContainer.style.display = "block";
 
       try {
+        // Use a proxy approach to avoid CORS issues
         const response = await fetch(BACKEND_URL, {
-          method: "POST",
+          method: 'POST',
+          mode: 'no-cors', // Important: Use no-cors mode
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/x-www-form-urlencoded',
           },
-          body: JSON.stringify({
-            question: question
-          })
+          body: `question=${encodeURIComponent(question)}`
         });
 
-        const data = await response.json();
+        // Since we can't read the response directly with no-cors,
+        // we'll use a different approach - create a simple HTML form
+        submitViaForm(question);
         
-        if (data.success) {
-          baseContent = data.content;
-          document.getElementById("result-container").textContent = baseContent;
-        } else {
-          document.getElementById("result-container").textContent = "❌ Error: " + data.error;
-        }
       } catch (err) {
-        document.getElementById("result-container").textContent = "❌ Network Error: " + err.message;
+        resultContainer.textContent = "❌ Network Error: " + err.message;
+        resultContainer.className = "error";
       }
     };
 
+    /**
+     * Alternative method: Submit via form to avoid CORS
+     */
+    function submitViaForm(question) {
+      const resultContainer = document.getElementById("result-container");
+      
+      // Create a hidden iframe to handle the response
+      const iframe = document.createElement('iframe');
+      iframe.name = 'gas-response-frame';
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+      
+      // Create a form
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = BACKEND_URL;
+      form.target = 'gas-response-frame';
+      
+      // Add question field
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'question';
+      input.value = question;
+      form.appendChild(input);
+      
+      // Handle response via iframe load
+      iframe.onload = function() {
+        try {
+          // Try to get the response from iframe
+          const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+          const responseText = iframeDoc.body.innerText;
+          
+          if (responseText) {
+            const data = JSON.parse(responseText);
+            if (data.success) {
+              baseContent = data.content;
+              resultContainer.textContent = baseContent;
+              resultContainer.className = "success";
+            } else {
+              resultContainer.textContent = "❌ Error: " + data.error;
+              resultContainer.className = "error";
+            }
+          }
+        } catch (e) {
+          resultContainer.textContent = "⚠️ Response received but could not parse. Check console for details.";
+          resultContainer.className = "error";
+          console.log('Raw response:', iframe.contentDocument?.body?.innerText);
+        }
+        
+        // Clean up
+        document.body.removeChild(iframe);
+        document.body.removeChild(form);
+      };
+      
+      document.body.appendChild(form);
+      form.submit();
+    }
+
+    /**
+     * Direct fetch method (for testing)
+     */
+    async function directFetch(question) {
+      try {
+        // Add random parameter to avoid caching
+        const url = `${BACKEND_URL}?timestamp=${Date.now()}`;
+        
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ question: question })
+        });
+        
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        throw new Error('Failed to connect to server');
+      }
+    }
+
     function formatResult(platform) {
       if (!baseContent) return alert("Please generate an answer first.");
+      
+      const resultContainer = document.getElementById("result-container");
       let prefix = "";
 
       switch (platform) {
@@ -141,16 +238,35 @@
       const cta = "\n\n👉 Like ❤️ | Comment 💬 | Share 🔁 | Follow 🔔";
 
       const formatted = `${prefix}${baseContent}${cta}${hashtags}`;
-      document.getElementById("result-container").textContent = formatted;
+      resultContainer.textContent = formatted;
+      resultContainer.className = "success";
     }
 
     document.getElementById("copy-btn").onclick = () => {
       const text = document.getElementById("result-container").textContent;
-      if (!text) return alert("Nothing to copy.");
+      if (!text || text === "⏳ Generating answer...") {
+        return alert("Nothing to copy.");
+      }
+      
       navigator.clipboard.writeText(text).then(() => {
+        alert("Copied to clipboard!");
+      }).catch(err => {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
         alert("Copied to clipboard!");
       });
     };
+
+    // Test backend connection on load
+    window.addEventListener('load', function() {
+      console.log('Social Media Answer Generator loaded');
+      console.log('Backend URL:', BACKEND_URL);
+    });
   </script>
 
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
