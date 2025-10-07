@@ -1,1 +1,157 @@
 
+<div id="answer-widget">
+  <style>
+    :root {
+      --primary-color: #4f46e5;
+      --bg-color: #f9fafb;
+      --text-color: #111827;
+      --card-color: #ffffff;
+    }
+
+    #answer-widget {
+      font-family: 'Poppins', sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      padding: 2rem;
+      border-radius: 1rem;
+      max-width: 800px;
+      margin: auto;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    }
+
+    #answer-widget h2 {
+      text-align: center;
+      margin-bottom: 1rem;
+      font-weight: 600;
+    }
+
+    #question-input {
+      width: 100%;
+      padding: 1rem;
+      border: 2px solid var(--primary-color);
+      border-radius: 0.75rem;
+      margin-bottom: 1rem;
+      font-size: 1rem;
+    }
+
+    .button-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      justify-content: center;
+      margin-bottom: 1rem;
+    }
+
+    .platform-btn, #generate-btn, #copy-btn {
+      background-color: var(--primary-color);
+      color: white;
+      padding: 0.75rem 1rem;
+      border: none;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-size: 0.9rem;
+    }
+
+    .platform-btn:hover, #generate-btn:hover, #copy-btn:hover {
+      background-color: #4338ca;
+    }
+
+    #result-container {
+      background: var(--card-color);
+      padding: 1.5rem;
+      border-radius: 1rem;
+      margin-top: 1rem;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+      white-space: pre-wrap;
+      line-height: 1.6;
+      display: none;
+    }
+
+    @media (max-width: 600px) {
+      .button-group {
+        flex-direction: column;
+      }
+    }
+  </style>
+
+  <h2>🎯 Answer To Your Ask Questions</h2>
+  <input id="question-input" placeholder="Enter your question..." />
+
+  <div class="button-group">
+    <button id="generate-btn">Get The Answer</button>
+    <button class="platform-btn" onclick="formatResult('facebook')">Facebook</button>
+    <button class="platform-btn" onclick="formatResult('instagram')">Instagram</button>
+    <button class="platform-btn" onclick="formatResult('tiktok')">TikTok</button>
+    <button class="platform-btn" onclick="formatResult('youtube')">YouTube</button>
+    <button id="copy-btn">📋 Copy</button>
+  </div>
+
+  <div id="result-container"></div>
+
+  <script>
+    // REPLACE THIS WITH YOUR GAS WEB APP URL AFTER DEPLOYMENT
+    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbzkP7VHyXf8Idkr6vVe5knrwmd1xTgSIiRYrwK4zU1jgx25xEChGawtXIrUo8eAjXG3/exec";
+    
+    let baseContent = "";
+
+    document.getElementById("generate-btn").onclick = async () => {
+      const question = document.getElementById("question-input").value.trim();
+      if (!question) return alert("Please enter a question.");
+
+      document.getElementById("result-container").textContent = "⏳ Generating answer...";
+      document.getElementById("result-container").style.display = "block";
+
+      try {
+        const response = await fetch(BACKEND_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            question: question
+          })
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+          baseContent = data.content;
+          document.getElementById("result-container").textContent = baseContent;
+        } else {
+          document.getElementById("result-container").textContent = "❌ Error: " + data.error;
+        }
+      } catch (err) {
+        document.getElementById("result-container").textContent = "❌ Network Error: " + err.message;
+      }
+    };
+
+    function formatResult(platform) {
+      if (!baseContent) return alert("Please generate an answer first.");
+      let prefix = "";
+
+      switch (platform) {
+        case "facebook": prefix = "📘 Facebook Post:\n"; break;
+        case "instagram": prefix = "📸 Instagram Caption:\n"; break;
+        case "tiktok": prefix = "🎵 TikTok Hook:\n"; break;
+        case "youtube": prefix = "🎬 YouTube Video Script:\nIntro:\n"; break;
+      }
+
+      const hashtags = "\n\n#Marketing #SocialMedia #Tips #GrowthHacks";
+      const cta = "\n\n👉 Like ❤️ | Comment 💬 | Share 🔁 | Follow 🔔";
+
+      const formatted = `${prefix}${baseContent}${cta}${hashtags}`;
+      document.getElementById("result-container").textContent = formatted;
+    }
+
+    document.getElementById("copy-btn").onclick = () => {
+      const text = document.getElementById("result-container").textContent;
+      if (!text) return alert("Nothing to copy.");
+      navigator.clipboard.writeText(text).then(() => {
+        alert("Copied to clipboard!");
+      });
+    };
+  </script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+</div>
